@@ -261,16 +261,17 @@ if search_button and query:
             # Smaller video player with column layout
             col1, col2 = st.columns([3, 2])
             
+            video_url = f"https://www.youtube.com/watch?v={video['video_id']}"
+            
             with col1:
-                st.video(video['url'])
+                st.video(video_url)
             
             with col2:
                 # Metadata
                 st.markdown(f"""
                 <div class="video-meta">
-                    📺 <strong>Channel:</strong> {video['channel_title']}<br>
-                    📅 <strong>Published:</strong> {video['published_date'][:10]}<br><br>
-                    <a href="{video['url']}" target="_blank" 
+                    📺 <strong>Channel:</strong> {video['channel']}<br><br>
+                    <a href="{video_url}" target="_blank" 
                        style="display: inline-block; background: #FF0000; color: white; 
                               padding: 8px 20px; border-radius: 20px; text-decoration: none; 
                               font-weight: 600; font-size: 13px;">
