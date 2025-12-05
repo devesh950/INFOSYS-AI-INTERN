@@ -1,0 +1,46 @@
+# Environment Variables (contains API keys - NEVER commit!)
+.env
+
+# Python Virtual Environments
+venv/
+env/
+ENV/
+.venv/
+
+# Python Cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# IDE Settings
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS Files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Backup Files
+*_backup.py
+*.bak
+
+# Jupyter Notebooks (if you add any)
+.ipynb_checkpoints/
+*.ipynb_checkpoints/
+
+# Data/Cache (not needed in repo)
+data/
+models/
+*.bin
+*.pt
+*.csv
+*.json
+*.parquet
+*.npy
