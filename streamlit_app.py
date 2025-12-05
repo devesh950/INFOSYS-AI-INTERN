@@ -1,291 +1,361 @@
 """
-YouTube Search App with Transcript Filter
-A Streamlit web application that searches YouTube videos and filters by transcript availability.
+QueryTube - Real-Time YouTube Search
+Search ALL of YouTube and get top 5 most relevant videos instantly!
 """
 
 import streamlit as st
-import sys
-from pathlib import Path
-
-# Add src to path
-sys.path.insert(0, str(Path(__file__).parent))
-
 from src.milestone1.search_youtube import YouTubeSearcher
 from youtube_transcript_api import YouTubeTranscriptApi
-from youtube_transcript_api._errors import TranscriptsDisabled, NoTranscriptFound
+import time
 
 # Page configuration
 st.set_page_config(
-    page_title="YouTube Search with Transcripts",
-    page_icon="🎬",
+    page_title="QueryTube - YouTube Search",
+    page_icon="🎥",
     layout="wide"
 )
 
-# Custom CSS for white background and better styling
+# Custom CSS
 st.markdown("""
-    <style>
+<style>
+    /* Background gradient */
     .stApp {
-        background-color: white;
-    }
-    .main {
-        background-color: white;
-    }
-    .block-container {
-        padding-top: 2rem;
-        padding-bottom: 2rem;
-    }
-    h1 {
-        color: #1a1a1a;
-        text-align: center;
-        padding: 1.5rem 0;
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
     }
-    .video-card {
-        background-color: #f8f9fa;
-        padding: 1.5rem;
-        border-radius: 10px;
-        margin-bottom: 1.5rem;
-        border: 1px solid #e9ecef;
-    }
-    .video-title {
-        color: #2c3e50;
-        font-size: 1.2rem;
-        font-weight: 600;
-        margin-bottom: 0.5rem;
-    }
-    .channel-name {
-        color: #7f8c8d;
-        font-size: 0.9rem;
-        margin-bottom: 0.5rem;
-    }
-    .transcript-badge {
-        display: inline-block;
-        padding: 0.25rem 0.75rem;
+    
+    /* Main content - solid white */
+    .block-container {
+        background: #ffffff;
+        padding: 2rem;
         border-radius: 20px;
-        font-size: 0.85rem;
-        font-weight: 500;
-        margin-bottom: 0.5rem;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.2);
     }
-    .badge-available {
-        background-color: #d4edda;
-        color: #155724;
+    
+    /* Headers - dark text */
+    h1, h2, h3, h4, h5, h6, p, span, div, label {
+        color: #1a1a1a !important;
     }
-    .badge-auto {
-        background-color: #cce5ff;
-        color: #004085;
+    
+    /* Search box */
+    .stTextInput input {
+        background: white !important;
+        color: #1a1a1a !important;
+        border: 2px solid #e0e0e0 !important;
+        border-radius: 10px !important;
+        padding: 12px !important;
+        font-size: 16px !important;
     }
-    .badge-unavailable {
-        background-color: #f8d7da;
-        color: #721c24;
+    
+    .stTextInput input:focus {
+        border-color: #667eea !important;
+        box-shadow: 0 0 0 3px rgba(102,126,234,0.1) !important;
     }
-    .stButton>button {
-        background-color: #667eea;
+    
+    /* Buttons */
+    .stButton button {
+        background: linear-gradient(135deg, #FF6B35 0%, #F7931E 100%);
         color: white;
-        border-radius: 5px;
-        padding: 0.5rem 2rem;
+        font-weight: 700;
+        padding: 12px 40px;
+        border-radius: 30px;
         border: none;
-        font-weight: 500;
+        font-size: 16px;
+        box-shadow: 0 4px 15px rgba(255,107,53,0.3);
     }
-    .stButton>button:hover {
-        background-color: #764ba2;
+    
+    .stButton button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(255,107,53,0.5);
     }
-    </style>
-    """, unsafe_allow_html=True)
+    
+    /* Video cards */
+    .video-card {
+        background: white;
+        padding: 20px;
+        border-radius: 12px;
+        border: 2px solid #e0e0e0;
+        margin-bottom: 20px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        transition: all 0.3s ease;
+    }
+    
+    .video-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+        border-color: #667eea;
+    }
+    
+    .video-title {
+        color: #1a1a1a !important;
+        font-size: 18px !important;
+        font-weight: 600 !important;
+        margin-bottom: 10px !important;
+    }
+    
+    .video-meta {
+        color: #606060 !important;
+        font-size: 14px !important;
+    }
+</style>
+""", unsafe_allow_html=True)
 
-# Title
-st.markdown("<h1>🎬 YouTube Search with Transcripts</h1>", unsafe_allow_html=True)
+# Initialize YouTube searcher
+@st.cache_resource
+def load_searcher():
+    return YouTubeSearcher()
 
-# Initialize session state
-if 'search_results' not in st.session_state:
-    st.session_state.search_results = []
-if 'last_query' not in st.session_state:
-    st.session_state.last_query = ""
+try:
+    searcher = load_searcher()
+except Exception as e:
+    st.error(f"❌ Error loading YouTube API: {e}")
+    st.stop()
 
-# Search interface
+# Header
+st.markdown("""
+<div style="text-align: center; padding: 40px 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+            border-radius: 20px; margin-bottom: 30px; box-shadow: 0 8px 32px rgba(0,0,0,0.3);">
+    <h1 style="color: white !important; margin: 0; font-size: 48px; font-weight: 800;">
+        🎥 QueryTube
+    </h1>
+    <p style="color: rgba(255,255,255,0.95) !important; margin: 15px 0 0 0; font-size: 22px; font-weight: 600;">
+        Search ALL of YouTube • Get Top 5 Most Relevant Videos
+    </p>
+    <p style="color: rgba(255,255,255,0.85) !important; margin: 10px 0 0 0; font-size: 16px;">
+        🚀 Real-time search • No pre-downloading needed
+    </p>
+</div>
+""", unsafe_allow_html=True)
+
+# Search section
+st.markdown("### 🔍 What do you want to watch today?")
+
+# Filter option
+col1, col2 = st.columns([3, 1])
+with col1:
+    st.markdown("")  # Spacing
+with col2:
+    only_transcripts = st.checkbox("📝 Only show videos with transcripts", value=False)
+
 col1, col2 = st.columns([3, 1])
 
 with col1:
-    search_query = st.text_input(
-        "Search YouTube videos",
-        placeholder="Enter your search query...",
-        label_visibility="collapsed"
+    query = st.text_input(
+        "Search YouTube",
+        placeholder="Type anything... (e.g., 'python tutorial', 'cooking recipes', 'funny cats')",
+        label_visibility="collapsed",
+        key="search_query"
     )
 
 with col2:
-    transcript_filter = st.checkbox("Only show videos with English transcripts", value=False)
+    search_button = st.button("🔍 Search", use_container_width=True)
 
-# Popular topics
-st.markdown("### 🎯 Popular Topics")
-topics_col1, topics_col2, topics_col3, topics_col4 = st.columns(4)
+# Example searches - Topics with transcripts
+st.markdown("**💡 Popular Topics (High Transcript Availability):**")
+col1, col2, col3, col4 = st.columns(4)
 
-with topics_col1:
-    if st.button("🎤 TED Talks"):
-        search_query = "TED talk"
-    if st.button("📚 Khan Academy"):
-        search_query = "Khan Academy"
+with col1:
+    if st.button("🎓 TED Talks", use_container_width=True):
+        st.session_state.clicked_query = "TED talks"
+        st.rerun()
 
-with topics_col2:
-    if st.button("🎓 Crash Course"):
-        search_query = "Crash Course"
-    if st.button("🌌 Kurzgesagt"):
-        search_query = "Kurzgesagt"
+with col2:
+    if st.button("📺 Khan Academy", use_container_width=True):
+        st.session_state.clicked_query = "Khan Academy"
+        st.rerun()
 
-with topics_col3:
-    if st.button("💻 freeCodeCamp"):
-        search_query = "freeCodeCamp"
-    if st.button("🌍 National Geographic"):
-        search_query = "National Geographic"
+with col3:
+    if st.button("🎬 Crash Course", use_container_width=True):
+        st.session_state.clicked_query = "Crash Course"
+        st.rerun()
 
-with topics_col4:
-    if st.button("🏛️ MIT OpenCourseWare"):
-        search_query = "MIT OpenCourseWare"
-    if st.button("🎓 Stanford Online"):
-        search_query = "Stanford Online"
+with col4:
+    if st.button("🔬 Kurzgesagt", use_container_width=True):
+        st.session_state.clicked_query = "Kurzgesagt"
+        st.rerun()
 
-def check_transcript_availability(video_id):
-    """
-    Check if a video has English transcripts available.
-    Returns: (has_transcript, is_auto_generated)
-    """
-    try:
-        transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
-        
-        # Check for manual English transcript
-        try:
-            transcript = transcript_list.find_manually_created_transcript(['en'])
-            return True, False
-        except:
-            pass
-        
-        # Check for auto-generated English transcript
-        try:
-            transcript = transcript_list.find_generated_transcript(['en'])
-            return True, True
-        except:
-            pass
-        
-        return False, False
-        
-    except (TranscriptsDisabled, NoTranscriptFound):
-        return False, False
-    except Exception as e:
-        return False, False
+col5, col6, col7, col8 = st.columns(4)
 
-def get_transcript(video_id):
-    """Get English transcript for a video (manual or auto-generated)."""
-    try:
-        transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
-        
-        # Try manual transcript first
-        try:
-            transcript = transcript_list.find_manually_created_transcript(['en'])
-            transcript_data = transcript.fetch()
-            return " ".join([entry['text'] for entry in transcript_data])
-        except:
-            pass
-        
-        # Try auto-generated transcript
-        try:
-            transcript = transcript_list.find_generated_transcript(['en'])
-            transcript_data = transcript.fetch()
-            return " ".join([entry['text'] for entry in transcript_data])
-        except:
-            pass
-        
-        return None
-        
-    except Exception as e:
-        return None
+with col5:
+    if st.button("💻 freeCodeCamp", use_container_width=True):
+        st.session_state.clicked_query = "freeCodeCamp"
+        st.rerun()
+
+with col6:
+    if st.button("🌍 Nat Geo", use_container_width=True):
+        st.session_state.clicked_query = "National Geographic"
+        st.rerun()
+
+with col7:
+    if st.button("📚 MIT Lectures", use_container_width=True):
+        st.session_state.clicked_query = "MIT OpenCourseWare"
+        st.rerun()
+
+with col8:
+    if st.button("🎓 Stanford", use_container_width=True):
+        st.session_state.clicked_query = "Stanford lecture"
+        st.rerun()
+
+# Handle button clicks BEFORE getting query
+if 'clicked_query' in st.session_state:
+    query = st.session_state.clicked_query
+    search_button = True
+    del st.session_state.clicked_query
+else:
+    # Get query from text input
+    query = st.session_state.get('search_query', '')
 
 # Perform search
-if search_query and search_query != st.session_state.last_query:
-    st.session_state.last_query = search_query
+if search_button and query:
+    with st.spinner(f"🔍 Searching YouTube for '{query}'..."):
+        videos = searcher.search_videos(query, max_results=20)  # Get more videos to filter
     
-    with st.spinner("Searching YouTube..."):
-        try:
-            searcher = YouTubeSearcher()
-            results = searcher.search_videos(search_query, max_results=20)
+    if videos:
+        # Filter videos if transcript-only option is selected
+        if only_transcripts:
+            filtered_videos = []
+            with st.spinner("🔍 Checking transcripts..."):
+                for video in videos:
+                    try:
+                        # Check if English transcript exists (manual or auto-generated)
+                        transcript_list = YouTubeTranscriptApi.list_transcripts(video['video_id'])
+                        try:
+                            # Try to find English transcript (manual or auto)
+                            transcript = transcript_list.find_transcript(['en'])
+                            filtered_videos.append(video)
+                            if len(filtered_videos) >= 5:  # Stop after finding 5
+                                break
+                        except:
+                            # Try auto-generated English transcript
+                            try:
+                                transcript = transcript_list.find_generated_transcript(['en'])
+                                filtered_videos.append(video)
+                                if len(filtered_videos) >= 5:
+                                    break
+                            except:
+                                continue
+                    except:
+                        continue
             
-            # Check transcript availability for each video
-            results_with_transcripts = []
-            for video in results:
-                has_transcript, is_auto = check_transcript_availability(video['video_id'])
-                video['has_transcript'] = has_transcript
-                video['is_auto_generated'] = is_auto
-                results_with_transcripts.append(video)
+            videos = filtered_videos
+        else:
+            videos = videos[:5]  # Just take first 5 if no filter
+        
+        if videos:
+            st.success(f"✅ Found {len(videos)} video{'s' if len(videos) != 1 else ''}!")
+        else:
+            st.warning("⚠️ No videos with English transcripts found. Try a different search or uncheck the filter.")
+            st.stop()
+        
+        st.markdown("---")
+        
+        for i, video in enumerate(videos, 1):
+            st.markdown(f"""
+            <div class="video-card">
+                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 15px;">
+                    <span style="background: #FF0000; color: white; padding: 6px 12px; 
+                                 border-radius: 6px; font-weight: 700;">#{i}</span>
+                    <span class="video-title">{video['title']}</span>
+                </div>
+            """, unsafe_allow_html=True)
             
-            # Filter by transcript if requested
-            if transcript_filter:
-                results_with_transcripts = [v for v in results_with_transcripts if v['has_transcript']]
+            # Smaller video player with column layout
+            col1, col2 = st.columns([3, 2])
             
-            st.session_state.search_results = results_with_transcripts
+            with col1:
+                st.video(video['url'])
             
-        except Exception as e:
-            st.error(f"Error searching YouTube: {str(e)}")
-            st.info("💡 Make sure you have set your YouTube API key in the .env file")
+            with col2:
+                # Metadata
+                st.markdown(f"""
+                <div class="video-meta">
+                    📺 <strong>Channel:</strong> {video['channel_title']}<br>
+                    📅 <strong>Published:</strong> {video['published_date'][:10]}<br><br>
+                    <a href="{video['url']}" target="_blank" 
+                       style="display: inline-block; background: #FF0000; color: white; 
+                              padding: 8px 20px; border-radius: 20px; text-decoration: none; 
+                              font-weight: 600; font-size: 13px;">
+                        ▶️ Open in YouTube
+                    </a>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            # Try to get English transcript (manual or auto-generated)
+            with st.expander("📝 View Transcript"):
+                try:
+                    # Try to get English transcript specifically
+                    transcript_list = YouTubeTranscriptApi.list_transcripts(video['video_id'])
+                    
+                    # Try manual English first
+                    try:
+                        transcript = transcript_list.find_transcript(['en'])
+                        transcript_data = transcript.fetch()
+                        transcript_text = " ".join([entry['text'] for entry in transcript_data])
+                        st.success("✅ English transcript available")
+                        st.text_area("Transcript", transcript_text, height=150, label_visibility="collapsed")
+                    except:
+                        # Try auto-generated English
+                        try:
+                            transcript = transcript_list.find_generated_transcript(['en'])
+                            transcript_data = transcript.fetch()
+                            transcript_text = " ".join([entry['text'] for entry in transcript_data])
+                            st.success("✅ English transcript available (Auto-generated)")
+                            st.text_area("Transcript", transcript_text, height=150, label_visibility="collapsed")
+                        except:
+                            # Try any other available transcript
+                            try:
+                                available = list(transcript_list)
+                                if available:
+                                    first_transcript = available[0]
+                                    transcript_data = first_transcript.fetch()
+                                    transcript_text = " ".join([entry['text'] for entry in transcript_data])
+                                    st.info(f"📝 Transcript available in {first_transcript.language}")
+                                    st.text_area("Transcript", transcript_text, height=150, label_visibility="collapsed")
+                                else:
+                                    st.warning("⚠️ Transcript not accessible via API")
+                                    st.info("💡 This video may have captions on YouTube, but they're not accessible through the API. Click 'Open in YouTube' to view with captions.")
+                            except:
+                                st.warning("⚠️ Transcript not accessible via API")
+                                st.info("💡 This video may have captions on YouTube, but they're not accessible through the API. Click 'Open in YouTube' to view with captions.")
+                except Exception as e:
+                    st.warning("⚠️ Transcript not accessible via API")
+                    st.info("💡 This video may have captions on YouTube, but they're not accessible through the API. Click 'Open in YouTube' to view with captions.")
+            
+            st.markdown("</div>", unsafe_allow_html=True)
+    
+    else:
+        st.warning("😕 No videos found. Try different keywords!")
 
-# Display results
-if st.session_state.search_results:
-    st.markdown(f"### 📺 Found {len(st.session_state.search_results)} videos")
-    
-    if transcript_filter and len(st.session_state.search_results) == 0:
-        st.warning("No videos with English transcripts found. Try disabling the transcript filter or searching for different content.")
-    
-    for idx, video in enumerate(st.session_state.search_results[:10], 1):
-        with st.container():
-            st.markdown('<div class="video-card">', unsafe_allow_html=True)
-            
-            # Video title and metadata
-            st.markdown(f'<div class="video-title">{idx}. {video["title"]}</div>', unsafe_allow_html=True)
-            st.markdown(f'<div class="channel-name">📺 {video["channel"]}</div>', unsafe_allow_html=True)
-            
-            # Transcript availability badge
-            if video['has_transcript']:
-                if video['is_auto_generated']:
-                    st.markdown('<span class="transcript-badge badge-auto">✓ Auto-generated English transcript</span>', unsafe_allow_html=True)
-                else:
-                    st.markdown('<span class="transcript-badge badge-available">✓ Manual English transcript</span>', unsafe_allow_html=True)
-            else:
-                st.markdown('<span class="transcript-badge badge-unavailable">✗ No English transcript (not accessible via API)</span>', unsafe_allow_html=True)
-            
-            # Video description
-            if video['description']:
-                with st.expander("📄 Description"):
-                    st.write(video['description'])
-            
-            # Embedded video player
-            video_url = f"https://www.youtube.com/watch?v={video['video_id']}"
-            st.video(video_url)
-            
-            # Show transcript if available
-            if video['has_transcript']:
-                with st.expander("📝 View Transcript"):
-                    with st.spinner("Loading transcript..."):
-                        transcript_text = get_transcript(video['video_id'])
-                        if transcript_text:
-                            st.text_area(
-                                "Transcript",
-                                transcript_text,
-                                height=200,
-                                label_visibility="collapsed"
-                            )
-                        else:
-                            st.info("Transcript is available on YouTube but couldn't be loaded via API.")
-            
-            st.markdown('</div>', unsafe_allow_html=True)
-            st.markdown("---")
+elif search_button:
+    st.warning("⚠️ Please enter a search query!")
 
-elif st.session_state.last_query:
-    st.info("No results found. Try a different search query.")
+else:
+    # Show placeholder
+    st.info("👆 Enter your search query above and click Search to find videos!")
+    
+    st.markdown("---")
+    st.markdown("""
+    ### ✨ How it works:
+    1. **Type any topic** you want to learn about or watch
+    2. **Click Search** - we'll search ALL of YouTube instantly  
+    3. **Get top 5 videos** most relevant to your query
+    4. **Watch directly** in the app or click to open in YouTube
+    5. **View transcripts** if available (click the dropdown)
+    
+    ### 🎯 No limitations:
+    - ✅ Search **any topic** on YouTube
+    - ✅ Get **instant results** - no pre-downloading
+    - ✅ Works with **ALL YouTube videos**, not just specific channels
+    - ✅ Shows **embedded video players** for instant viewing
+    - ✅ Displays **transcripts** when available
+    """)
 
 # Footer
 st.markdown("---")
 st.markdown("""
-<div style='text-align: center; color: #7f8c8d; padding: 1rem;'>
-    <p>💡 Search across all YouTube videos • Filter by English transcripts • Watch embedded videos</p>
-    <p style='font-size: 0.8rem;'>Note: Some videos have captions on YouTube but may not be accessible via API</p>
+<div style="text-align: center; padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+            border-radius: 15px; margin-top: 30px;">
+    <p style="color: white !important; margin: 0; font-size: 14px;">
+        ⚡ Powered by YouTube Data API v3 • 🎯 Real-time Search • 🚀 Instant Results
+    </p>
 </div>
 """, unsafe_allow_html=True)
